@@ -1,0 +1,314 @@
+import 'package:flutter/material.dart';
+import 'package:google_fonts/google_fonts.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+void main() {
+  runApp(const SozodioBinaryApp());
+}
+
+class SozodioBinaryApp extends StatefulWidget {
+  const SozodioBinaryApp({super.key});
+  @override
+  State<SozodioBinaryApp> createState() => _SozodioBinaryAppState();
+}
+
+class _SozodioBinaryAppState extends State<SozodioBinaryApp> {
+  bool isDark = true;
+  
+  void toggleTheme() {
+    setState(() => isDark = !isDark);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Binary Pro Calculator',
+      debugShowCheckedModeBanner: false,
+      theme: isDark ? darkTheme : lightTheme,
+      home: HomePage(toggleTheme: toggleTheme, isDark: isDark),
+    );
+  }
+
+  ThemeData get lightTheme => ThemeData(
+    useMaterial3: true,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: const Color(0xFF3F51B5),
+      brightness: Brightness.light,
+    ),
+    textTheme: GoogleFonts.poppinsTextTheme(),
+  );
+
+  ThemeData get darkTheme => ThemeData(
+    useMaterial3: true,
+    colorScheme: ColorScheme.fromSeed(
+      seedColor: const Color(0xFF3F51B5),
+      brightness: Brightness.dark,
+    ),
+    textTheme: GoogleFonts.poppinsTextTheme(ThemeData.dark().textTheme),
+  );
+}
+
+class HomePage extends StatefulWidget {
+  final VoidCallback toggleTheme;
+  final bool isDark;
+  const HomePage({super.key, required this.toggleTheme, required this.isDark});
+
+  @override
+  State<HomePage> createState() => _HomePageState();
+}
+
+class _HomePageState extends State<HomePage> with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+  String input = '';
+  String result = '0';
+  String currentOp = '';
+  int bitLength = 8;
+  bool isSigned = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 4, vsync: this);
+  }
+
+  void onButtonPressed(String value) {
+    setState(() {
+      if (value == 'C') {
+        input = '';
+        result = '0';
+        currentOp = '';
+      } else if (value == '=' && currentOp.isNotEmpty) {
+        calculate();
+      } else if (['+', '-', '×', '÷', 'AND', 'OR', 'XOR'].contains(value)) {
+        if (input.isNotEmpty) {
+          currentOp = value;
+          result = input;
+          input = '';
+        }
+      } else if (value == 'DEL') {
+        if (input.isNotEmpty) input = input.substring(0, input.length - 1);
+      } else if (value == '0' || value == '1') {
+        if (input.length < bitLength) input += value;
+      }
+    });
+  }
+
+  void calculate() {
+    try {
+      int num1 = int.parse(result, radix: 2);
+      int num2 = int.parse(input, radix: 2);
+      int res = 0;
+      
+      switch (currentOp) {
+        case '+': res = num1 + num2; break;
+        case '-': res = num1 - num2; break;
+        case '×': res = num1 * num2; break;
+        case '÷': res = num2 != 0 ? num1 ~/ num2 : 0; break;
+        case 'AND': res = num1 & num2; break;
+        case 'OR': res = num1 | num2; break;
+        case 'XOR': res = num1 ^ num2; break;
+      }
+      
+      if (isSigned && bitLength == 8) {
+        if (res > 127) res = res - 256;
+        if (res < -128) res = res + 256;
+      }
+      
+      input = res.toRadixString(2).padLeft(bitLength, '0');
+      result = '0';
+      currentOp = '';
+    } catch (e) {
+      input = 'Error';
+    }
+  }
+
+  String convertBase(String val, int fromBase, int toBase) {
+    if (val.isEmpty) return '0';
+    try {
+      int dec = int.parse(val, radix: fromBase);
+      return dec.toRadixString(toBase).toUpperCase();
+    } catch (e) {
+      return 'Error';
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Sozodio Binary Pro', style: GoogleFonts.poppins(fontWeight: FontWeight.bold)),
+        actions: [
+          IconButton(
+            icon: Icon(widget.isDark ? Icons.light_mode : Icons.dark_mode),
+            onPressed: widget.toggleTheme,
+          ),
+        ],
+        bottom: TabBar(
+          controller: _tabController,
+          tabs: const [
+            Tab(icon: Icon(Icons.calculate), text: 'Calc'),
+            Tab(icon: Icon(Icons.swap_horiz), text: 'Convert'),
+            Tab(icon: Icon(Icons.code), text: 'Program'),
+            Tab(icon: Icon(Icons.school), text: 'Learn'),
+          ],
+        ),
+      ),
+      body: TabBarView(
+        controller: _tabController,
+        children: [
+          buildCalculator(),
+          buildConverter(),
+          buildProgrammer(),
+          buildLearn(),
+        ],
+      ),
+    );
+  }
+
+  Widget buildCalculator() {
+    return Column(
+      children: [
+        Container(
+          padding: const EdgeInsets.all(20),
+          alignment: Alignment.centerRight,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(result, style: GoogleFonts.jetBrainsMono(fontSize: 20, color: Colors.grey)),
+              Text(currentOp, style: const TextStyle(fontSize: 24)),
+              Text(
+                input.isEmpty ? '0' : input,
+                style: GoogleFonts.jetBrainsMono(fontSize: 48, fontWeight: FontWeight.bold),
+              ).animate().fadeIn(),
+              Text('Dec: ${input.isEmpty ? 0 : int.parse(input, radix: 2)} | Hex: ${input.isEmpty ? 0 : int.parse(input, radix: 2).toRadixString(16).toUpperCase()}', 
+                style: const TextStyle(fontSize: 12, color: Colors.grey)),
+            ],
+          ),
+        ),
+        Wrap(
+          spacing: 8,
+          children: [4, 8, 16, 32].map((e) => ChoiceChip(
+            label: Text('${e}-bit'),
+            selected: bitLength == e,
+            onSelected: (_) => setState(() => bitLength = e),
+          )).toList(),
+        ),
+        SwitchListTile(
+          title: const Text("Signed 2's Complement"),
+          value: isSigned,
+          onChanged: (v) => setState(() => isSigned = v),
+        ),
+        Expanded(
+          child: GridView.count(
+            crossAxisCount: 4,
+            padding: const EdgeInsets.all(8),
+            children: [
+              'C', 'DEL', 'AND', 'OR',
+              'XOR', '÷', '×', '-',
+              '1', '0', '+', '=',
+            ].map((e) => Padding(
+              padding: const EdgeInsets.all(4),
+              child: ElevatedButton(
+                onPressed: () => onButtonPressed(e),
+                style: ElevatedButton.styleFrom(
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                ),
+                child: Text(e, style: const TextStyle(fontSize: 20)),
+              ).animate().scale(duration: 100.ms),
+            )).toList(),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildConverter() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        children: [
+          TextField(
+            decoration: const InputDecoration(labelText: 'Enter Binary', border: OutlineInputBorder()),
+            style: GoogleFonts.jetBrainsMono(),
+            onChanged: (v) => setState(() => input = v),
+          ),
+          const SizedBox(height: 20),
+          Card(
+            child: ListTile(
+              title: const Text('Decimal'),
+              trailing: Text(convertBase(input, 2, 10), style: GoogleFonts.jetBrainsMono(fontSize: 18)),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              title: const Text('Hexadecimal'),
+              trailing: Text(convertBase(input, 2, 16), style: GoogleFonts.jetBrainsMono(fontSize: 18)),
+            ),
+          ),
+          Card(
+            child: ListTile(
+              title: const Text('Octal'),
+              trailing: Text(convertBase(input, 2, 8), style: GoogleFonts.jetBrainsMono(fontSize: 18)),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget buildProgrammer() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.memory),
+            title: const Text('Logic Gates'),
+            subtitle: const Text('AND, OR, NOT, XOR simulator coming soon'),
+          ),
+        ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.numbers),
+            title: const Text('IEEE 754 Float'),
+            subtitle: const Text('32-bit float to binary converter'),
+          ),
+        ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.lan),
+            title: const Text('IP Calculator'),
+            subtitle: const Text('Subnet mask in binary'),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget buildLearn() {
+    return ListView(
+      padding: const EdgeInsets.all(16),
+      children: [
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.quiz, color: Colors.orange),
+            title: const Text('Start Quiz'),
+            subtitle: const Text('Test your binary skills'),
+            onTap: () {},
+          ),
+        ),
+        Card(
+          child: ListTile(
+            leading: const Icon(Icons.menu_book, color: Colors.green),
+            title: const Text('Tutorials'),
+            subtitle: const Text('Learn binary basics'),
+            onTap: () {},
+          ),
+        ),
+        const SizedBox(height: 20),
+        const Center(child: Text('Sozodio © 2026', style: TextStyle(color: Colors.grey))),
+      ],
+    );
+  }
+}
